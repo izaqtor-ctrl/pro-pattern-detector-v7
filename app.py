@@ -1319,16 +1319,16 @@ def main():
                                 st.write(f"• **Entry Timing**: {market_context['entry_timing']}")
                                 
                                 # Pattern-specific information
-                                if pattern_type == "Inside Bar":
+                                if pattern == "Inside Bar":
                                     if info.get('single_inside_bar'):
-                                        st.write("📊 Single inside bar (preferred)")
+                                        st.write("Single inside bar (preferred)")
                                     elif info.get('double_inside_bar'):
-                                        st.write("📊 Double inside bar")
+                                        st.write("Double inside bar")
                                     if info.get('size_ratio'):
-                                        st.write(f"🔄 Consolidation: {info['size_ratio']}")
+                                        st.write(f"Consolidation: {info['size_ratio']}")
                                     if info.get('tight_consolidation'):
-                                        st.success("✅ Tight consolidation")
-                                    st.success(f"🎯 **Triple Targets**: T1 Mother Bar, T2 +13%, T3 +21%")
+                                        st.success("Tight consolidation")
+                                    st.success("**Triple Targets**: T1 Mother Bar, T2 +13%, T3 +21%")
                                 
                                 elif info.get('initial_ascension'):
                                     st.write(f"🚀 Initial rise: {info['initial_ascension']}")
