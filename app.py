@@ -345,7 +345,7 @@ def analyze_volume_pattern(data, pattern_type, pattern_info):
     
     return volume_score, volume_info
 
-def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
+def detect_inside_bar(data, macd_line, signal_line, histogram, market_context, timeframe="daily"):
     """Detect Inside Bar pattern - buy-only with specific entry rules and color requirements"""
     confidence = 0
     pattern_info = {}
@@ -353,13 +353,23 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
     if len(data) < 5:
         return confidence, pattern_info
     
+    # Adjust lookback based on timeframe
+    if timeframe == "1wk":
+        max_lookback_range = range(-1, -7, -1)  # Look back 6 weeks maximum
+        aging_threshold = -8  # Pattern stale after 8 weeks
+        pattern_info['timeframe'] = 'Weekly'
+    else:
+        max_lookback_range = range(-1, -5, -1)  # Look back 4 days maximum  
+        aging_threshold = -6  # Pattern stale after 6 days
+        pattern_info['timeframe'] = 'Daily'
+    
     # Look for inside bar pattern (max 2 inside bars)
     mother_bar_idx = None
     inside_bars_count = 0
     inside_bar_indices = []
     
     # Start from the most recent bar and look backwards
-    for i in range(-1, -4, -1):  # Check last 3 positions
+    for i in max_lookback_range:
         try:
             current_bar = data.iloc[i]
             previous_bar = data.iloc[i-1]
@@ -407,7 +417,9 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
         return confidence, pattern_info
     
     # Base confidence for pattern formation
-    confidence += 30
+    base_confidence = 35 if timeframe == "1wk" else 30  # Higher base for weekly patterns
+    confidence += base_confidence
+    
     pattern_info['mother_bar_high'] = mother_bar['High']
     pattern_info['mother_bar_low'] = mother_bar['Low']
     pattern_info['inside_bar_high'] = latest_inside_bar['High']
@@ -438,13 +450,18 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
         pattern_info['size_ratio'] = f"{size_ratio:.1%}"
         
         # Prefer smaller inside bars (tighter consolidation)
-        if size_ratio < 0.30:
+        # Weekly patterns can tolerate slightly larger inside bars
+        tight_threshold = 0.35 if timeframe == "1wk" else 0.30
+        good_threshold = 0.55 if timeframe == "1wk" else 0.50
+        moderate_threshold = 0.75 if timeframe == "1wk" else 0.70
+        
+        if size_ratio < tight_threshold:
             confidence += 20
             pattern_info['tight_consolidation'] = True
-        elif size_ratio < 0.50:
+        elif size_ratio < good_threshold:
             confidence += 15
             pattern_info['good_consolidation'] = True
-        elif size_ratio < 0.70:
+        elif size_ratio < moderate_threshold:
             confidence += 10
             pattern_info['moderate_consolidation'] = True
         else:
@@ -487,10 +504,12 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
         confidence = min(confidence, 70)
         pattern_info['confidence_capped'] = "No volume confirmation"
     
-    # Pattern age check - inside bars should be recent
-    if mother_bar_idx <= -5:
-        confidence *= 0.8
+    # Pattern age check - timeframe adjusted
+    if mother_bar_idx <= aging_threshold:
+        aging_penalty = 0.7 if timeframe == "1wk" else 0.8
+        confidence *= aging_penalty
         pattern_info['pattern_aging'] = True
+        pattern_info['age_periods'] = abs(mother_bar_idx)
     
     # Apply timing adjustments
     confidence, pattern_info = adjust_confidence_for_timing(confidence, pattern_info, market_context)
@@ -735,7 +754,7 @@ def detect_cup_handle(data, macd_line, signal_line, histogram, market_context):
     
     return confidence, pattern_info
 
-def detect_pattern(data, pattern_type, market_context):
+def detect_pattern(data, pattern_type, market_context, timeframe="daily"):
     """Detect patterns with enhanced volume analysis and timing awareness"""
     if len(data) < 10:
         return False, 0, {}
@@ -762,7 +781,7 @@ def detect_pattern(data, pattern_type, market_context):
         confidence = min(confidence * 1.1, 100)
         
     elif pattern_type == "Inside Bar":
-        confidence, pattern_info = detect_inside_bar(data, macd_line, signal_line, histogram, market_context)
+        confidence, pattern_info = detect_inside_bar(data, macd_line, signal_line, histogram, market_context, timeframe)
         confidence = min(confidence, 100)
     
     pattern_info['macd_line'] = macd_line
@@ -1244,7 +1263,7 @@ def main():
                 if data is not None and len(data) >= 10:
                     
                     for pattern in selected_patterns:
-                        detected, confidence, info = detect_pattern(data, pattern, market_context)
+                        detected, confidence, info = detect_pattern(data, pattern, market_context, period)
                         
                         # Apply volume filter
                         skip_pattern = False
