@@ -346,7 +346,7 @@ def analyze_volume_pattern(data, pattern_type, pattern_info):
     return volume_score, volume_info
 
 def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
-    """Detect Inside Bar pattern - buy-only with specific entry rules"""
+    """Detect Inside Bar pattern - buy-only with specific entry rules and color requirements"""
     confidence = 0
     pattern_info = {}
     
@@ -370,21 +370,25 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
                         current_bar['High'] < previous_bar['High'] and  # Must be strictly inside
                         current_bar['Low'] > previous_bar['Low'])
             
-            if is_inside:
+            # Color validation: Mother bar must be green, inside bar must be red
+            mother_is_green = previous_bar['Close'] > previous_bar['Open']
+            inside_is_red = current_bar['Close'] < current_bar['Open']
+            
+            if is_inside and mother_is_green and inside_is_red:
                 if inside_bars_count == 0:
                     # First inside bar found, previous bar is mother bar
                     mother_bar_idx = i - 1
                     inside_bar_indices.append(i)
                     inside_bars_count = 1
                 elif inside_bars_count == 1 and i == inside_bar_indices[0] - 1:
-                    # Second consecutive inside bar
+                    # Second consecutive inside bar (must also be red)
                     inside_bar_indices.append(i)
                     inside_bars_count = 2
                     break  # Max 2 inside bars
                 else:
                     break  # Not consecutive, stop looking
             else:
-                break  # No inside bar, stop looking
+                break  # No valid inside bar (size or color), stop looking
         except (IndexError, KeyError):
             break
     
@@ -395,6 +399,13 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
     mother_bar = data.iloc[mother_bar_idx]
     latest_inside_bar = data.iloc[inside_bar_indices[0]]  # Most recent inside bar
     
+    # Validate color requirements one more time
+    mother_is_green = mother_bar['Close'] > mother_bar['Open']
+    inside_is_red = latest_inside_bar['Close'] < latest_inside_bar['Open']
+    
+    if not (mother_is_green and inside_is_red):
+        return confidence, pattern_info
+    
     # Base confidence for pattern formation
     confidence += 30
     pattern_info['mother_bar_high'] = mother_bar['High']
@@ -402,6 +413,13 @@ def detect_inside_bar(data, macd_line, signal_line, histogram, market_context):
     pattern_info['inside_bar_high'] = latest_inside_bar['High']
     pattern_info['inside_bar_low'] = latest_inside_bar['Low']
     pattern_info['inside_bars_count'] = inside_bars_count
+    pattern_info['color_validated'] = True
+    pattern_info['mother_bar_color'] = 'Green'
+    pattern_info['inside_bar_color'] = 'Red'
+    
+    # Bonus for proper color combination
+    confidence += 15
+    pattern_info['proper_color_combo'] = True
     
     # Prefer single inside bar over double
     if inside_bars_count == 1:
@@ -1328,6 +1346,8 @@ def main():
                                         st.write(f"Consolidation: {info['size_ratio']}")
                                     if info.get('tight_consolidation'):
                                         st.success("Tight consolidation")
+                                    if info.get('color_validated'):
+                                        st.success("Mother Bar: Green | Inside Bar: Red")
                                     st.success("**Triple Targets**: T1 Mother Bar, T2 +13%, T3 +21%")
                                 
                                 elif info.get('initial_ascension'):
