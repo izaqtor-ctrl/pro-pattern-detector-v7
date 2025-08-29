@@ -589,28 +589,12 @@ def detect_flat_top(data, macd_line, signal_line, histogram, market_context):
     return confidence, pattern_info
 
 def detect_bull_flag(data, macd_line, signal_line, histogram, market_context):
-    # Add this parameter to return markup points
-    markup_points = []
+    """Detect bull flag with enhanced volume analysis and timing"""
+    confidence = 0
+    pattern_info = {}
     
-    # Keep ALL your existing Bull Flag logic exactly the same
-    # Just add these lines where you identify key points:
-    
-    # After you calculate flagpole start/peak:
-    markup_points.extend([
-        {'date': start_date, 'price': start_price, 'label': 'Flagpole Start', 'color': 'blue', 'symbol': 'triangle-up'},
-        {'date': peak_idx, 'price': peak_price, 'label': f'Flagpole Peak (+{flagpole_gain*100:.1f}%)', 'color': 'green', 'symbol': 'star'}
-    ])
-    
-    # After you identify flag boundaries:
-    markup_points.extend([
-        {'date': flag_high_date, 'price': flag_high, 'label': 'Flag High', 'color': 'red', 'symbol': 'triangle-down'},
-        {'date': flag_low_date, 'price': flag_low, 'label': 'Flag Low', 'color': 'purple', 'symbol': 'triangle-up'}
-    ])
-    
-    # Change your return statement from:
-    # return confidence, pattern_info
-    # To:
-    return confidence, pattern_info, markup_points
+    if len(data) < 30:
+        return confidence, pattern_info
     
     flagpole_start = min(25, len(data) - 10)
     flagpole_end = 15
@@ -1041,18 +1025,6 @@ def create_chart(data, ticker, pattern_type, pattern_info, levels, market_contex
         ),
         row=1, col=1
     )
-# Add all markup points
-for point in markup_points:
-    fig.add_trace(
-        go.Scatter(
-            x=[point['date']], y=[point['price']],
-            mode='markers+text',
-            marker=dict(symbol=point.get('symbol', 'circle'), size=10, color=point['color']),
-            text=[point['label']], textposition="top center",
-            name=point['label'], showlegend=False
-        ), row=1, col=1
-    )
-    
     
     # Moving averages
     data['SMA20'] = data['Close'].rolling(window=20).mean()
@@ -1291,8 +1263,7 @@ def main():
                 if data is not None and len(data) >= 10:
                     
                     for pattern in selected_patterns:
-                        detected, confidence, info, markup_points = detect_pattern(data, pattern, market_context, timeframe)
-                        # detected, confidence, info = detect_pattern(data, pattern, market_context, period)
+                        detected, confidence, info = detect_pattern(data, pattern, market_context, period)
                         
                         # Apply volume filter
                         skip_pattern = False
@@ -1416,8 +1387,7 @@ def main():
                                     st.write("🎯 Near breakout")
                             
                             # Chart with timing context
-                            # fig = create_chart(data, ticker, pattern, info, levels, market_context, period)
-                            fig = create_chart_with_markup(data, ticker, pattern, info, levels, market_context, timeframe, markup_points)
+                            fig = create_chart(data, ticker, pattern, info, levels, market_context, period)
                             st.plotly_chart(fig, use_container_width=True)
                             
                             # Add to results with timing information
